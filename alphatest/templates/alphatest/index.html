@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<title>AI20Q alpha</title>
+<meta name="HandheldFriendly" content="true" />
+<meta name="MobileOptimized" content="320" />
+<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, width=device-width, user-scalable=no" />
+
+{% load static %}
+<link rel="stylesheet" href="{% static 'ai20q/css/game.css' %}">
+
+<script>
+function scrollDown() { window.scrollTo(0, document.body.scrollHeight); }
+
+var waiting = false;
+
+function submitForm(form) {
+    if (waiting)
+        return false;
+    if (form.question.value == "") {
+        form.question.focus();
+        return false;
+    }
+    document.getElementById("go-button").style.display = "none";
+    document.getElementById("go-spinner").style.display = "inline-block";
+    document.getElementById("hint-button").disabled = true;
+    waiting = true;
+    return true;
+}
+
+function requestHint(form) {
+    if (waiting)
+        return false;
+    document.getElementById("hint-button").style.display = "none";
+    document.getElementById("hint-spinner").style.display = "inline-block";
+    document.getElementById("go-button").disabled = true;
+    waiting = true;
+    return true;
+}
+</script>
+
+</head>
+<body onload="scrollDown()">
+
+<div class="background"></div>
+
+<div id="topmenu-spacer"></div>
+
+<div class="messagecontainer">
+    <div class="messagebox">
+        Try to find out the word I'm thinking of. Ask yes/no questions to narrow down the choices until you reach the exact word. Good luck!
+    </div>
+    {% for message in messages %}
+        <div class="messagebox">
+            {{ message.question }} <span class="{{ message.class_name }}-color">{{ message.answer }}</span>
+        </div>
+    {% endfor %}
+</div>
+
+<div id="controlpanel-spacer"></div>
+<div id="controlpanel">
+    {% if is_solved %}
+        <div class="controlpanel-element">
+            You got it! The word was "{{ target_word }}".
+        </div>
+        <div class="controlpanel-element">
+            <a href="{% url 'alphatest:next_word' %}">Next</a>
+        </div>
+    {% elif questions_left %}
+        <form class="controlpanel-element" id="question-form" action="{% url 'alphatest:ask' %}" onsubmit="return submitForm(this);" method="post">
+            {% csrf_token %}
+            <div class="flexbox">
+                <input type="text" id="question" name="question" maxlength="98" value="{{ hint }}" size="1" autofocus>
+                <button type="submit" id="go-button" class="round-button">
+                    <svg width="40" height="40">
+                        <polygon points="12,10 16,20 12,30 32,20" class="svg-fill" />
+                    </svg>
+                </button>
+                <div id="go-spinner" class="spinner"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            </div>
+        </form>
+        <div class="controlpanel-element small-text oneliner">
+            {{ questions_asked }} asked<br>{{ questions_left }} left
+        </div>
+    {% else %}
+        <div class="controlpanel-element">
+            Out of questions. The word was "{{ target_word }}".
+        </div>
+        <div class="controlpanel-element">
+            <a href="{% url 'alphatest:next_word' %}">Next</a>
+        </div>
+    {% endif %}
+</div>
+
+<div id="topmenu">
+    <button id="help-button" class="round-button topmenu-element">
+        ?
+    </button>
+    <div id="title">
+        AI20Q
+    </div>
+    <div>
+        {% if hints_left %}
+            <form class="topmenu-element" action="{% url 'alphatest:hint' %}" onsubmit="return requestHint(this);" method="post">
+                {% csrf_token %}
+                {% if is_solved or questions_left == 0 %}
+                    <button type="submit" id="hint-button" class="round-button" disabled>{{ hints_left }}</button>
+                {% else %}
+                    <button type="submit" id="hint-button" class="round-button">{{ hints_left }}</button>
+                    <div id="hint-spinner" class="spinner"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+                {% endif %}
+            </form>
+        {% endif %}
+        <button id="profile-button" class="round-button topmenu-element">
+            {{ user_initial }}
+        </button>
+    </div>
+</div>
+
+<div id="profile-modal" class="modal">
+    <div class="profile-content">
+        <div class="profile-element">
+            {{ username }}
+        </div>
+        <div class="profile-element">
+            <button id="stats-button" class="link-button">STATISTICS</button>
+        </div>
+        <div class="profile-element">
+            <form>
+                <button formaction="{% url 'password_change' %}" class="link-button">PASSWORD</button>
+            </form>
+        </div>
+        <div class="profile-element">
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="link-button">LOG OUT</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="stats-modal" class="modal">
+    <div class="stats-content">
+        {% if is_solved %}
+            <div class="stats-header">
+                Well done!
+            </div>
+            <div class="small-text last-block">
+                Guessed "{{ target_word}}" in {{ questions_asked }} questions.
+            </div>
+        {% elif questions_left == 0 %}
+            <div class="stats-header">
+                Better luck next time!
+            </div>
+            <div class="small-text last-block">
+                Ran out of questions. The word was "{{ target_word}}".
+            </div>
+        {% endif %}
+        <div class="stats-header">
+            Statistics
+        </div>
+        <div class="last-block">
+            <div class="stats-element">
+                <div class="stats-number">{{ played_count }}</div>
+                <div class="small-text">Played</div>
+            </div>
+            <div class="stats-element">
+                <div class="stats-number">{{ win_rate }}</div>
+                <div class="small-text">Win %</div>
+            </div>
+            <div class="stats-element">
+                <div class="stats-number">{{ current_streak }} / {{ max_streak }}</div>
+                <div class="small-text">Streak</div>
+            </div>
+        </div>
+        <div class="stats-header">
+            Guess distribution
+        </div>
+        <table class="chart">
+            {% for bar in solved_bars %}
+                <tr>
+                    <td class="chart-label">{{ forloop.counter }}</td>
+                    <td>
+                        {% if bar.number %} <div class="chart-bar" style="min-width: {{ bar.length }};">{{ bar.number }}</div>
+                        {% else %} <div class="chart-bar" style="min-width: {{ bar.length }}; background-color: var(--color-dark);">{{ bar.number }}</div>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+        <button id="stats-close" class="modal-close">
+            <svg width="20" height="20">
+                <line x1="1" y1="1" x2="19" y2="19" class="svg-stroke" />
+                <line x1="1" y1="19" x2="19" y2="1" class="svg-stroke" />
+            </svg>
+        </button>
+    </div>
+</div>
+
+<div id="help-modal" class="modal">
+    <div class="help-content">
+        <div class="help-header">
+            How to play
+        </div>
+        <ul>
+            <li>Ask up to 20 yes/no questions to find out the secret word.</li>
+            <li>Don't refer to previous questions; the AI doesn't remember them.</li>
+            <li>
+                When you're ready to guess:
+                <ul>
+                    <li>Make sure your spelling is correct.</li>
+                    <li>Don't include other words longer than 2 letters in the question.</li>
+                </ul>
+            </li>
+            <li>
+                The word can be any common noun (not a name).
+                <ul>
+                    <li>Valid: "apple", "summer", "ghost".</li>
+                    <li>Invalid: "Caesar", "speak", "small".</li>
+                </ul>
+            </li>
+            <li>
+                The word is always a single word.
+                <ul>
+                    <li>"Swimming pool" is not a valid word.</li>
+                </ul>
+            </li>
+        </ul>
+        <div class="help-header">
+            Tips
+        </div>
+        <ul>
+            <li>"Maybe" means that both yes and no can be correct.</li>
+            <li>"Can't say" usually means that the question doesn't apply to the word.</li>
+            <li>
+                The secret words are carefully curated to ensure that
+                <ul>
+                    <li>common knowledge is enough to play.</li>
+                    <li>the game is interesting and varied.</li>
+                </ul>
+            </li>
+            <li>
+                Prefer questions about the meaning of the word.
+                <ul>
+                    <li>Asking about the spelling is technically possible, but the answers are unreliable.</li>
+                </ul>
+            </li>
+            <li>
+                Your question will automatically have
+                <ul>
+                    <li>the first letter capitalized.</li>
+                    <li>a question mark at the end.</li>
+                </ul>
+            </li>
+        </ul>
+        <button id="help-close" class="modal-close">
+            <svg width="20" height="20">
+                <line x1="1" y1="1" x2="19" y2="19" class="svg-stroke" />
+                <line x1="1" y1="19" x2="19" y2="1" class="svg-stroke" />
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+var profilemodal = document.getElementById("profile-modal");
+var statsmodal = document.getElementById("stats-modal");
+var helpmodal = document.getElementById("help-modal");
+
+document.getElementById("profile-button").onclick = function() {
+    profilemodal.style.display = "flex";
+}
+
+window.onclick = function(event) {
+    if (event.target == profilemodal) {
+        profilemodal.style.display = "none";
+    }
+    else if (event.target == statsmodal) {
+        statsmodal.style.display = "none";
+    }
+    else if (event.target == helpmodal) {
+        helpmodal.style.display = "none";
+    }
+}
+
+document.getElementById("stats-button").onclick = function() {
+    profilemodal.style.display = "none";
+    statsmodal.style.display = "flex";
+}
+
+document.getElementById("stats-close").onclick = function() {
+    statsmodal.style.display = "none";
+}
+
+document.getElementById("help-button").onclick = function() {
+    helpmodal.style.display = "flex";
+}
+
+document.getElementById("help-close").onclick = function() {
+    helpmodal.style.display = "none";
+}
+
+{% if is_solved or questions_left == 0 %}
+setTimeout(()=>{ statsmodal.style.display = "flex"; }, 1000);
+{% endif %}
+</script>
+
+</body>
+</html>
